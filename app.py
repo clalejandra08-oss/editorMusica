@@ -1,13 +1,10 @@
 import streamlit as st
-import static_ffmpeg
+from pydub import AudioSegment
 import io
 import zipfile
 
-# --- SOLUCIÓN DEFINITIVA AL ERROR DE FFPROBE EN WINDOWS ---
-# Esto descarga e inyecta ffmpeg y ffprobe automáticamente
-static_ffmpeg.add_paths()
-
-from pydub import AudioSegment
+# Sin static_ffmpeg: Streamlit Cloud ya tiene ffmpeg vía packages.txt
+# En local (Windows), instala ffmpeg manualmente y agrégalo al PATH
 
 st.set_page_config(page_title="Editor de Cornetas", layout="centered")
 st.title("🎺 Editor de Cornetas Múltiple")
@@ -44,15 +41,13 @@ if st.button("🎛️ Generar Canciones Editadas"):
         estado = st.empty()
         estado.text("Iniciando procesamiento...")
         
-        # Cargar la corneta en memoria
         try:
             corneta = AudioSegment.from_file(corneta_file, format="mp3")
-            corneta = corneta[:int(duracion * 1000)] # Cortar a la duración deseada
+            corneta = corneta[:int(duracion * 1000)]
         except Exception as e:
             st.error(f"Error al leer la corneta: {e}")
             st.stop()
         
-        # Crear archivo ZIP en memoria
         zip_buffer = io.BytesIO()
         
         with zipfile.ZipFile(zip_buffer, "w") as zip_file:
@@ -60,21 +55,17 @@ if st.button("🎛️ Generar Canciones Editadas"):
             for idx, cancion_file in enumerate(canciones_files):
                 estado.text(f"Procesando: {cancion_file.name} ({idx+1}/{total})")
                 try:
-                    # Cargar canción en memoria
                     cancion = AudioSegment.from_file(cancion_file, format="mp3")
                     
-                    # Insertar corneta
                     intervalo_ms = int(intervalo * 1000)
                     resultado = cancion
                     for i in range(0, len(cancion), intervalo_ms):
                         resultado = resultado.overlay(corneta, position=i)
                     
-                    # Exportar a buffer
                     output_buffer = io.BytesIO()
                     resultado.export(output_buffer, format="mp3")
                     output_buffer.seek(0)
                     
-                    # Añadir al ZIP
                     zip_file.writestr(f"editada_{cancion_file.name}", output_buffer.read())
                 except Exception as e:
                     st.warning(f"No se pudo procesar {cancion_file.name}: {e}")
